@@ -1,75 +1,211 @@
-# 📦 Smart Inventory Optimizer (Hệ thống Tối ưu hóa Nhập hàng)
-
-Dự án Nghiên cứu Khoa học: **Ứng dụng Machine Learning và Vận trù học trong Dự báo Nhu cầu và Tối ưu hóa Quản trị Tồn kho bán lẻ.**
-
-Dự án này sử dụng tập dữ liệu thực tế từ cuộc thi [M5 Forecasting - Accuracy](https://www.kaggle.com/c/m5-forecasting-accuracy) (Walmart) trên Kaggle để xây dựng một luồng xử lý (pipeline) tự động: Từ dữ liệu thô $\rightarrow$ Phân loại nhu cầu $\rightarrow$ Dự báo AI (LightGBM) $\rightarrow$ Mô phỏng kịch bản đặt hàng để tìm ra ROP (Reorder Point) và EOQ (Economic Order Quantity) tối ưu.
+# 📦 Smart Inventory Optimizer  
+### Hệ thống Tối ưu hóa Nhập hàng bằng Machine Learning & Vận trù học
 
 ---
 
-## 📂 Cấu trúc Thư mục
+## 📌 Giới thiệu
 
-Để dự án hoạt động trơn tru, hãy đảm bảo cấu trúc thư mục của bạn như sau:
+**Smart Inventory Optimizer** là dự án Nghiên cứu Khoa học tập trung vào:
+
+> Ứng dụng **Machine Learning** và **Operations Research (Vận trù học)**  
+để **dự báo nhu cầu** và **tối ưu hóa quản trị tồn kho bán lẻ**.
+
+Dự án sử dụng dữ liệu thực tế từ cuộc thi **M5 Forecasting - Accuracy (Walmart)** trên Kaggle để xây dựng một pipeline tự động:
+
+```
+Dữ liệu thô 
+→ Tiền xử lý 
+→ Phân loại nhu cầu 
+→ Dự báo AI (LightGBM) 
+→ Mô phỏng Monte Carlo 
+→ Tối ưu ROP & EOQ
+```
+
+---
+
+## 🎯 Mục tiêu
+
+- Dự báo nhu cầu hàng hóa theo thời gian
+- Phân loại hành vi tiêu dùng (Demand Pattern)
+- Tối ưu:
+  - **ROP (Reorder Point)** – Điểm đặt hàng lại
+  - **EOQ (Economic Order Quantity)** – Lượng đặt hàng tối ưu
+- Hỗ trợ ra quyết định tồn kho theo dữ liệu thực
+
+---
+
+## 📂 Cấu trúc thư mục
 
 ```
 NCKH_OPTIMINIZATION_INVENTORY/
 │
 ├── dataset/
-│   ├── raw/                 # Chứa 5 file .csv tải từ Kaggle (calendar, sales_train, sell_prices...)
-│   └── processed/           # Chứa các file .parquet sinh ra sau khi chạy code
+│   ├── raw/                 
+│   │   └── (calendar.csv, sales_train, sell_prices...)
+│   └── processed/           
+│       └── (file .parquet sau xử lý)
 │
-├── docs/                    # Tài liệu đặc tả dự án, báo cáo 
+├── docs/                    
+│   └── Tài liệu, báo cáo, biểu đồ
 │
-├── notebooks/               # Mã nguồn chính (Jupyter Notebooks)
-│   ├── 01_data_prep_and_lag.ipynb       # Ép cân, làm sạch dữ liệu và vẽ Lag Chart
-│   ├── 02_demand_classification.ipynb   # Phân loại nhóm nhu cầu bằng Toán học (ADI & CV2)
-│   ├── 02b_feature_engineering.ipynb    # Trích xuất đặc trưng (Giá cả, Sự kiện, Chu kỳ)
-│   └── 03_machine_learning.ipynb        # Train LightGBM & Chạy Mô phỏng Tồn kho
+├── src/                     
+│   ├── dataPreprocessing.py     
+│   └── featureEngineering.py    
 │
-├── requirements.txt         # Danh sách thư viện Python cần thiết
-└── README.md                # File hướng dẫn này
+├── notebooks/               
+│   ├── 02_demand_classification.ipynb   
+│   └── 03_machine_learning.ipynb        
+│
+├── app.py                   
+├── requirements.txt         
+└── README.md                
 ```
-
-## 🛠️ Cài đặt Môi trường
-
-**1. Yêu cầu hệ thống:**
-* Python 3.8 trở lên.
-* Khuyên dùng Anaconda hoặc Miniconda.
-
-**2. Cài đặt thư viện:**
-Mở Terminal / Command Prompt tại thư mục dự án và chạy lệnh sau:
-
-```
-pip install -r requirements.txt
-```
-
-(Các thư viện chính bao gồm: pandas, numpy, matplotlib, seaborn, lightgbm, pyarrow, scikit-learn, statsmodels)
-
-## 🚀 Hướng dẫn Chạy Dự án
-
-### Bước 1: Chuẩn bị Dữ liệu
-* **Tải dữ liệu:** Tải file `m5-forecasting-accuracy.zip` từ Kaggle, giải nén và copy các file `.csv` (`calendar.csv`, `sales_train_validation.csv`, `sell_prices.csv`) vào thư mục `dataset/raw/`.
-* **Chạy File:** Mở và chạy toàn bộ cell trong `01_data_prep_and_lag.ipynb`.
-* **Kết quả:** Code sẽ "ép cân" dữ liệu (giảm 70% RAM) và sinh ra file `master_data.parquet` trong thư mục `processed/`.
-
-### Bước 2: Feature Engineering (Trích xuất đặc trưng)
-* **Chạy File:** Mở và chạy `02b_feature_engineering.ipynb`.
-* **Mô tả:** Hệ thống sẽ hợp nhất dữ liệu giá cả, xử lý các ngày lễ tết, mã hóa biến phân loại và sinh ra các đặc trưng trượt/trễ (Lag/Rolling).
-* **Kết quả:** Sinh ra file `featured_data.parquet` sẵn sàng cho AI.
-
-### Bước 3: Phân loại Nhu cầu (Phân tích)
-* **Chạy File:** Mở `02_demand_classification.ipynb`.
-* **Mô tả:** Sử dụng thuật toán ma trận Syntetos-Boylan (tính ADI và CV²) để chia các mặt hàng thành 4 nhóm: *Smooth*, *Erratic*, *Intermittent*, *Lumpy*.
-
-### Bước 4: Dự báo AI và Mô phỏng Tồn kho (Cốt lõi)
-* **Chạy File:** Mở và chạy `03_machine_learning.ipynb`.
-* **Mô tả:** * Huấn luyện mô hình LightGBM (Objective: Tweedie) để dự báo nhu cầu 28 ngày tiếp theo.
-  * Chạy mô phỏng hàng ngàn kịch bản đặt hàng để tìm mức chi phí thấp nhất.
-* **Kết quả:** In ra Báo cáo Hành động (Tồn kho hiện tại, Số lượng cần nhập, Điểm đặt hàng ROP) và các biểu đồ trực quan.
 
 ---
 
-## 🧠 Công nghệ Sử dụng
-* **Data Processing:** Pandas, Numpy, PyArrow.
-* **Machine Learning:** LightGBM (Tweedie distribution for sparse data).
-* **Visualization:** Matplotlib, Seaborn.
-* **Optimization:** Grid Search Simulation.
+## ⚙️ Cài đặt môi trường
+
+### 1. Yêu cầu
+
+- Python **>= 3.8**
+- Khuyến nghị: **Anaconda / Miniconda**
+
+---
+
+### 2. Cài đặt thư viện
+
+```bash
+pip install -r requirements.txt
+```
+
+### 📦 Thư viện chính
+
+- pandas, numpy
+- matplotlib, seaborn
+- lightgbm
+- pyarrow
+- statsmodels
+- streamlit
+
+---
+
+## 🚀 Hướng dẫn chạy dự án
+
+---
+
+### 🔹 Cách 1: Chạy Web App (Demo trực quan)
+
+```bash
+python -m streamlit run app.py
+```
+
+👉 Trình duyệt sẽ mở dashboard cho phép:
+
+- Chọn cửa hàng & sản phẩm
+- Điều chỉnh:
+  - Lead Time
+  - Chi phí lưu kho
+- Xem:
+  - Dự báo AI
+  - Biểu đồ tồn kho
+  - Kết quả tối ưu ROP & EOQ
+
+---
+
+### 🔹 Cách 2: Chạy môi trường Nghiên cứu
+
+---
+
+### 📥 Bước 0: Chuẩn bị dữ liệu
+
+- Tải dataset từ Kaggle:
+  - `m5-forecasting-accuracy.zip`
+- Copy các file `.csv` vào:
+
+```
+dataset/raw/
+```
+
+---
+
+### 🧪 Bước 1: Phân loại nhu cầu
+
+Chạy notebook:
+
+```
+notebooks/02_demand_classification.ipynb
+```
+
+#### Nội dung:
+
+- Tiền xử lý dữ liệu
+- Phân loại bằng phương pháp **Syntetos–Boylan**
+
+| Nhóm | Ý nghĩa |
+|------|--------|
+| Smooth | Nhu cầu ổn định |
+| Erratic | Biến động cao |
+| Intermittent | Gián đoạn |
+| Lumpy | Không đều + biến động |
+
+#### Phân tích thêm:
+
+- ACF (AutoCorrelation)
+- PACF (Partial AutoCorrelation)
+
+---
+
+### 🤖 Bước 2: Dự báo & Tối ưu tồn kho
+
+Chạy notebook:
+
+```
+notebooks/03_machine_learning.ipynb
+```
+
+#### Pipeline:
+
+1. **ML Routing**
+   - Tự động chọn model:
+     - LightGBM Regression
+     - Tweedie (cho dữ liệu sparse)
+
+2. **Recursive Forecasting**
+   - Dự báo cuốn chiếu nhiều bước
+
+3. **Monte Carlo Simulation**
+   - Mô phỏng hàng ngàn kịch bản tồn kho
+
+---
+
+### 📊 Kết quả đầu ra
+
+- Tồn kho hiện tại
+- EOQ tối ưu
+- ROP tối ưu
+- Biểu đồ tồn kho theo thời gian
+
+---
+
+## 🧠 Công nghệ sử dụng
+
+### 📊 Data Processing
+- Pandas, NumPy
+- PyArrow (tối ưu RAM)
+
+### 🤖 Machine Learning
+- LightGBM
+- Tweedie Loss (xử lý dữ liệu thưa)
+
+### 📈 Time Series
+- Statsmodels (ACF/PACF)
+- Feature Engineering (Lag, Rolling)
+
+### 📦 Operations Research
+- Monte Carlo Simulation
+- Grid Search tối ưu ROP & EOQ
+
+### 🌐 Deployment
+- Streamlit Dashboard
+
+---
