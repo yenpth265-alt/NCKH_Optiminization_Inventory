@@ -5,6 +5,7 @@ import lightgbm as lgb
 import matplotlib.pyplot as plt
 import sys
 import os
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 # Trỏ đường dẫn để gọi module từ thư mục src
 sys.path.append(os.path.abspath('src'))
@@ -92,6 +93,7 @@ if run_button:
         new_row = pd.DataFrame({'date': [next_date], 'demand': [pred_demand], 'sell_price': last_row['sell_price'], 'price_discount': last_row['price_discount'], 'event_name_1': last_row['event_name_1']})
         history_df = pd.concat([history_df, new_row], ignore_index=True)
 
+    # ĐÂY LÀ BIẾN CHÍNH
     daily_demand_forecast = np.round(future_predictions).astype(int)
 
     # Mô phỏng Tồn kho
@@ -128,24 +130,58 @@ if run_button:
             if cost < best_cost:
                 best_cost, best_ROP, best_Q, best_history = cost, rop, q, history
 
-    # HIỂN THỊ KẾT QUẢ RA WEB LUNG LINH
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric(label="📦 Tồn Kho Hiện Tại", value=f"{initial_inv} sp")
-    col2.metric(label="🎯 Ngưỡng ROP", value=f"{best_ROP} sp", delta="Điểm đặt hàng")
-    col3.metric(label="✅ Lượng Đặt EOQ", value=f"{best_Q} sp", delta="Tối ưu nhất")
-    col4.metric(label="💰 Tổng Chi Phí", value=f"${best_cost:,.2f}", delta="- Chi phí thấp nhất", delta_color="inverse")
-
-    # Vẽ biểu đồ
-    st.markdown("### 📈 Biểu đồ Mô phỏng Tồn kho 28 ngày tới")
-    fig, ax = plt.subplots(figsize=(12, 4))
-    ax.step(range(1, 29), best_history, where='post', color='#27AE60', linewidth=2.5, label='Lượng Tồn Kho')
-    ax.axhline(y=best_ROP, color='#E74C3C', linestyle='--', linewidth=2, label=f'Ngưỡng đặt hàng (ROP = {best_ROP})')
-    ax.set_xlabel("Ngày tương lai")
-    ax.set_ylabel("Số lượng trong kho")
-    ax.grid(True, linestyle='-.', alpha=0.5)
-    ax.legend()
-    st.pyplot(fig)
+    # HIỂN THỊ KẾT QUẢ RA WEB
+    st.markdown("---")
     
-    st.success("✅ Mô phỏng hoàn tất! Khuyến nghị đã sẵn sàng để xuất báo cáo.")
+    col_rop, col_eoq, col_cost = st.columns(3)
+    col_rop.metric(label="🎯 Ngưỡng ROP tối ưu", value=f"{best_ROP} sp", delta="Chạm là đặt hàng")
+    col_eoq.metric(label="✅ Lượng Đặt EOQ tối ưu", value=f"{best_Q} sp", delta="Lô hàng tiết kiệm nhất")
+    col_cost.metric(label="💰 Tổng Chi Phí Dự Kiến", value=f"${best_cost:,.2f}", delta="- Chi phí thấp nhất")
+
+    tab_sim, tab_ai = st.tabs(["Mô phỏng Lộ trình Kho (Simulation)", "📊 Đánh giá Sai số AI (Backtest)"])
+    
+    with tab_sim:
+        st.markdown("### 📈 Mô phỏng Tồn kho dựa theo AI (28 ngày tới)")
+        fig_inv, ax_inv = plt.subplots(figsize=(12, 4))
+        ax_inv.step(range(1, 29), best_history, where='post', color='#27AE60', linewidth=2.5, label='Lượng Tồn Kho (Inventory)')
+        ax_inv.axhline(y=best_ROP, color='#E74C3C', linestyle='--', linewidth=2, label=f'Ngưỡng ROP = {best_ROP}')
+        ax_inv.set_xlabel("Ngày tương lai", fontweight='bold')
+        ax_inv.set_ylabel("Số lượng trong kho", fontweight='bold')
+        ax_inv.set_xticks(range(1, 29))
+        ax_inv.grid(True, linestyle='-.', alpha=0.5)
+        ax_inv.legend(loc='upper right')
+        st.pyplot(fig_inv)
+
+    with tab_ai:
+        st.markdown("### 🔮 So sánh AI dự báo với Thực tế (Backtest trên 28 ngày cuối)")
+        
+        df_item_raw = df[(df['item_id'] == selected_item) & (df['store_id'] == selected_store)].copy()
+        
+        if len(df_item_raw) >= 28:
+            daily_demand_actuals = df_item_raw.iloc[-28:]['demand'].values
+            
+            # Đã sửa lỗi tên biến ở đây: dùng daily_demand_forecast
+            mae = mean_absolute_error(daily_demand_actuals, daily_demand_forecast)
+            rmse = np.sqrt(mean_squared_error(daily_demand_actuals, daily_demand_forecast))
+            
+            c1, c2 = st.columns(2)
+            c1.metric("MAE (Lỗi Trung bình)", f"{mae:,.2f} sp")
+            c2.metric("RMSE (Độ lệch chuẩn)", f"{rmse:,.2f} sp")
+            
+            fig_comp, ax_comp = plt.subplots(figsize=(12, 4))
+            # Sửa tên biến ở đây: daily_demand_forecast
+            ax_comp.bar(range(1, 29), daily_demand_forecast, color='#3498DB', edgecolor='black', alpha=0.6, label='Dự báo AI')
+            ax_comp.plot(range(1, 29), daily_demand_actuals, color='#D35400', marker='o', linewidth=2.5, label='Nhu cầu Thực tế')
+            ax_comp.set_xlabel("Ngày so sánh", fontweight='bold')
+            ax_comp.set_ylabel("Số lượng bán", fontweight='bold')
+            ax_comp.set_xticks(range(1, 29))
+            ax_comp.grid(axis='y', linestyle='--', alpha=0.5)
+            ax_comp.legend(loc='upper left')
+            st.pyplot(fig_comp)
+        else:
+            st.warning("⚠️ Dữ liệu quá ngắn để thực hiện Backtest.")
+    
+    st.success("✅ Phân tích hoàn tất!")
+
 else:
-    st.info("👈 Vui lòng cấu hình thông số ở Menu bên trái và bấm **'Chạy Mô Phỏng AI'** để xem kết quả.")
+    st.info("👈 Cấu hình ở Menu bên trái và bấm 'Chạy Mô Phỏng AI'.")
