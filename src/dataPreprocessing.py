@@ -5,25 +5,33 @@ import gc
 
 def reduce_mem_usage(df):
     """Hàm tối ưu hóa dung lượng bộ nhớ cho DataFrame"""
-    # (Đoạn này giữ nguyên như cũ của bạn)
     for col in df.columns:
         col_type = df[col].dtype
         if pd.api.types.is_datetime64_any_dtype(col_type) or str(col_type) == 'category':
             continue
         if col_type != object:
-            c_min, c_max = df[col].min(), df[col].max()
-            if str(col_type)[:3] == 'int':
-                if c_min > np.iinfo(np.int8).min and c_max < np.iinfo(np.int8).max:
-                    df[col] = df[col].astype(np.int8)
-                elif c_min > np.iinfo(np.int16).min and c_max < np.iinfo(np.int16).max:
-                    df[col] = df[col].astype(np.int16)
-                elif c_min > np.iinfo(np.int32).min and c_max < np.iinfo(np.int32).max:
-                    df[col] = df[col].astype(np.int32)
-            else:
-                if c_min > np.finfo(np.float16).min and c_max < np.finfo(np.float16).max:
-                    df[col] = df[col].astype(np.float16)
-                elif c_min > np.finfo(np.float32).min and c_max < np.finfo(np.float32).max:
-                    df[col] = df[col].astype(np.float32)
+            try:
+                c_min, c_max = df[col].min(), df[col].max()
+                # Kiểm tra xem c_min và c_max có phải là numeric không
+                if not (np.isscalar(c_min) and np.isscalar(c_max)):
+                    df[col] = df[col].astype('category')
+                    continue
+                
+                if str(col_type)[:3] == 'int':
+                    if c_min > np.iinfo(np.int8).min and c_max < np.iinfo(np.int8).max:
+                        df[col] = df[col].astype(np.int8)
+                    elif c_min > np.iinfo(np.int16).min and c_max < np.iinfo(np.int16).max:
+                        df[col] = df[col].astype(np.int16)
+                    elif c_min > np.iinfo(np.int32).min and c_max < np.iinfo(np.int32).max:
+                        df[col] = df[col].astype(np.int32)
+                else:
+                    if c_min > np.finfo(np.float16).min and c_max < np.finfo(np.float16).max:
+                        df[col] = df[col].astype(np.float16)
+                    elif c_min > np.finfo(np.float32).min and c_max < np.finfo(np.float32).max:
+                        df[col] = df[col].astype(np.float32)
+            except Exception:
+                # Nếu có lỗi, chuyển sang category
+                df[col] = df[col].astype('category')
         else:
             df[col] = df[col].astype('category')
     return df
