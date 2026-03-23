@@ -66,3 +66,34 @@ def create_lag_features_for_item(df_item):
     df_item = df_item.dropna(subset=cols_to_check)
     
     return df_item
+
+
+def classify_demand(group):
+    """Hàm tính ADI, CV2 và phân loại cho từng sản phẩm"""
+    demand = group['demand'].values
+    if demand.sum() == 0:
+        return pd.Series({'ADI': np.nan, 'CV2': np.nan, 'Category': 'No Sales'})
+    
+    #Chỉ tính bắt đầu từ ngày đầu tiên có sales
+    non_zero_indices = np.where(demand > 0)[0]
+    first_sale_idx = non_zero_indices[0]
+    active_demand = demand[first_sale_idx:]
+    
+    days_with_sales = len(active_demand[active_demand > 0])
+    adi = len(active_demand) / days_with_sales if days_with_sales > 0 else np.nan
+    
+    #Lưu ý CV2 chỉ tính trên các ngày có bán hàng (demand >0)
+    non_zero_demand = active_demand[active_demand > 0]
+    mean_demand = np.mean(non_zero_demand)
+    cv2 = (np.std(non_zero_demand) / mean_demand) ** 2 if mean_demand > 0 else np.nan
+        
+    if adi <= 1.32 and cv2 <= 0.49:
+        category = 'Smooth (Đều đặn)'
+    elif adi <= 1.32 and cv2 > 0.49:
+        category = 'Erratic (Thất thường)'
+    elif adi > 1.32 and cv2 <= 0.49:
+        category = 'Intermittent (Ngắt quãng)'
+    else:
+        category = 'Lumpy (Cục bộ)'
+        
+    return pd.Series({'ADI': round(adi, 2), 'CV2': round(cv2, 2), 'Category': category})
