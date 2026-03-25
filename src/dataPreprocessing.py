@@ -83,3 +83,93 @@ def load_and_preprocess_raw(raw_dir, nrows=None):
     print("5. Ép cân lần cuối cho DataFrame tổng...")
     df_master = reduce_mem_usage(df_master)
     return df_master
+
+
+#METHOD TRONG KAGGLE NOTEBOOK
+#Xử lý để bảng về dạng long
+def create_dt(is_train = True, 
+              nrows = None, 
+              first_day = 1200, 
+              price_dt = None, 
+              cal_dt = None, 
+              raw_folder = "../dataset/raw/",
+              tr_last = 1913,
+              max_lags = 57
+              ):
+    prices = pd.read_csv(f"{raw_folder}/sell_prices.csv", dtype = price_dt)
+    for col, col_dtype in price_dt.items():
+        if col_dtype == "category":
+            prices[col] = prices[col].cat.codes.astype("int16")
+            prices[col] -= prices[col].min()
+            
+    cal = pd.read_csv(f"{raw_folder}/calendar.csv", dtype = cal_dt)
+    cal["date"] = pd.to_datetime(cal["date"])
+    for col, col_dtype in cal_dt.items():
+        if col_dtype == "category":
+            cal[col] = cal[col].cat.codes.astype("int16")
+            cal[col] -= cal[col].min()
+    
+    start_day = max(1 if is_train  else tr_last-max_lags, first_day)
+    numcols = [f"d_{day}" for day in range(start_day,tr_last+1)]
+    catcols = ['id', 'item_id', 'dept_id','store_id', 'cat_id', 'state_id']
+    dtype = {numcol:"float32" for numcol in numcols} 
+    dtype.update({col: "category" for col in catcols if col != "id"})
+    dt = pd.read_csv(f"{raw_folder}/sales_train_validation.csv", 
+                     nrows = nrows, usecols = catcols + numcols, dtype = dtype)
+    
+    for col in catcols:
+        if col != "id":
+            dt[col] = dt[col].cat.codes.astype("int16")
+            dt[col] -= dt[col].min()
+    
+    if not is_train:
+        for day in range(tr_last+1, tr_last+ 28 +1):
+            dt[f"d_{day}"] = np.nan
+    
+    dt = pd.melt(dt,
+                  id_vars = catcols,
+                  value_vars = [col for col in dt.columns if col.startswith("d_")],
+                  var_name = "d",
+                  value_name = "sales")
+    
+    dt = dt.merge(cal, on= "d", copy = False)
+    dt = dt.merge(prices, on = ["store_id", "item_id", "wm_yr_wk"], copy = False)
+    
+    return dt
+
+#Thêm các đặc trưng cho dữ liệu
+def create_fea(dt, lags_fe = [7, 28], wins_fe = [7, 28]):
+    lags = lags_fe
+    lag_cols = [f"lag_{lag}" for lag in lags ]
+    for lag, lag_col in zip(lags, lag_cols):
+        dt[lag_col] = dt[["id","sales"]].groupby("id")["sales"].shift(lag)
+
+    wins = wins_fe
+    for win in wins :
+        for lag,lag_col in zip(lags, lag_cols):
+            dt[f"rmean_{lag}_{win}"] = dt[["id", lag_col]].groupby("id")[lag_col].transform(lambda x : x.rolling(win).mean())
+
+    
+    
+    date_features = {
+        
+        "wday": "weekday",
+        "week": "isocalendar",
+        "month": "month",
+        "quarter": "quarter",
+        "year": "year",
+        "mday": "day",
+#         "ime": "is_month_end",
+#         "ims": "is_month_start",
+    }
+    
+#     dt.drop(["d", "wm_yr_wk", "weekday"], axis=1, inplace = True)
+    
+    for date_feat_name, date_feat_func in date_features.items():
+        if date_feat_name in dt.columns:
+            dt[date_feat_name] = dt[date_feat_name].astype("int16")
+        else:
+            if date_feat_name == "week":
+                dt[date_feat_name] = dt["date"].dt.isocalendar().week.astype("int16")
+            else:
+                dt[date_feat_name] = getattr(dt["date"].dt, date_feat_func).astype("int16")
