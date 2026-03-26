@@ -1,4 +1,4 @@
-def optimize_procurement_knapsack(df, budget):
+def optimize_procurement_greedy(df, budget):
     """
     Thuật toán Tham lam (Greedy Knapsack) tối ưu cho máy RAM yếu.
     Sắp xếp theo tỷ lệ Lợi nhuận / Chi phí và chọn từ cao xuống thấp.
