@@ -138,34 +138,82 @@ def create_dt(is_train = True,
     return dt
 
 #Thêm các đặc trưng cho dữ liệu
-def create_fea(dt, lags_fe = [7, 28], wins_fe = [7, 28]):
-    lags = lags_fe
-    lag_cols = [f"lag_{lag}" for lag in lags ]
-    for lag, lag_col in zip(lags, lag_cols):
-        dt[lag_col] = dt[["id","sales"]].groupby("id")["sales"].shift(lag)
-
-    wins = wins_fe
-    for win in wins :
-        for lag,lag_col in zip(lags, lag_cols):
-            dt[f"rmean_{lag}_{win}"] = dt[["id", lag_col]].groupby("id")[lag_col].transform(lambda x : x.rolling(win).mean())
-
-    
-    
-    date_features = {
-        
+def create_fea(
+    dt,
+    lags_fe=[7, 28],
+    wins_fe=[7, 28],
+    std_fe=None,
+    price_lags_fe=None,
+    price_wins_fe=None,
+    price_std_fe=None,
+    date_features={
         "wday": "weekday",
         "week": "isocalendar",
         "month": "month",
         "quarter": "quarter",
         "year": "year",
         "mday": "day",
-#         "ime": "is_month_end",
-#         "ims": "is_month_start",
     }
-    
-#     dt.drop(["d", "wm_yr_wk", "weekday"], axis=1, inplace = True)
-    
+):
+    # =========================
+    # Sales Features
+    # =========================
+    lag_cols = []
+
+    if lags_fe is not None:
+        lag_cols = [f"lag_{lag}" for lag in lags_fe]
+        for lag, lag_col in zip(lags_fe, lag_cols):
+            dt[lag_col] = dt.groupby("id")["sales"].shift(lag)
+
+    if wins_fe is not None and lags_fe is not None:
+        for win in wins_fe:
+            for lag, lag_col in zip(lags_fe, lag_cols):
+                dt[f"rmean_{lag}_{win}"] = (
+                    dt.groupby("id")[lag_col]
+                      .transform(lambda x: x.rolling(win).mean())
+                )
+
+    if std_fe is not None and lags_fe is not None:
+        for std in std_fe:
+            for lag, lag_col in zip(lags_fe, lag_cols):
+                dt[f"rstd_{lag}_{std}"] = (
+                    dt.groupby("id")[lag_col]
+                      .transform(lambda x: x.rolling(std).std())
+                )
+
+    # =========================
+    # Price Features
+    # =========================
+    price_lag_cols = []
+
+    if price_lags_fe is not None:
+        price_lag_cols = [f"price_lag_{lag}" for lag in price_lags_fe]
+        for lag, lag_col in zip(price_lags_fe, price_lag_cols):
+            dt[lag_col] = dt.groupby("id")["sell_price"].shift(lag)
+
+    if price_wins_fe is not None and price_lags_fe is not None:
+        for win in price_wins_fe:
+            for lag, lag_col in zip(price_lags_fe, price_lag_cols):
+                dt[f"price_rmean_{lag}_{win}"] = (
+                    dt.groupby("id")[lag_col]
+                      .transform(lambda x: x.rolling(win).mean())
+                )
+
+    if price_std_fe is not None and price_lags_fe is not None:
+        for std in price_std_fe:
+            for lag, lag_col in zip(price_lags_fe, price_lag_cols):
+                dt[f"price_rstd_{lag}_{std}"] = (
+                    dt.groupby("id")[lag_col]
+                      .transform(lambda x: x.rolling(std).std())
+                )
+
+    # =========================
+    # Date Features
+    # =========================
     for date_feat_name, date_feat_func in date_features.items():
+        if date_feat_func is None:
+            continue
+
         if date_feat_name in dt.columns:
             dt[date_feat_name] = dt[date_feat_name].astype("int16")
         else:
@@ -173,3 +221,5 @@ def create_fea(dt, lags_fe = [7, 28], wins_fe = [7, 28]):
                 dt[date_feat_name] = dt["date"].dt.isocalendar().week.astype("int16")
             else:
                 dt[date_feat_name] = getattr(dt["date"].dt, date_feat_func).astype("int16")
+
+    return dt
