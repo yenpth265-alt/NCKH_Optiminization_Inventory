@@ -1,34 +1,60 @@
-def optimize_procurement_greedy(df, budget):
+import pandas as pd
+import numpy as np
+
+def optimize_budget_knapsack(df, budget, scale=100):
     """
-    Thuật toán Tham lam (Greedy Knapsack) tối ưu cho máy RAM yếu.
-    Sắp xếp theo tỷ lệ Lợi nhuận / Chi phí và chọn từ cao xuống thấp.
+    scale=100 nghĩa là hỗ trợ đến 2 chữ số thập phân (ví dụ: 1.55)
+    Nếu muốn chính xác hơn nữa (1.555), hãy chỉnh scale=1000.
     """
-    # 1. Tính chỉ số hiệu quả: Lợi nhuận trên mỗi đồng vốn bỏ ra
-    df['efficiency'] = df['profit'] / df['unit_cost']
+    # 1. TÍNH TOÁN (Giữ nguyên float để chính xác tuyệt đối)
+    df['total_cost'] = df['demand'] * df['unit_cost']
+    df['gross_profit'] = df['demand'] * (df['sell_price'] - df['unit_cost'])
+    df['holding_total'] = df['demand'] * df['holding_cost_per_unit'] * 0.1
+    df['shortage_penalty'] = df['demand'] * df['shortage_cost_per_unit']
     
-    # 2. Sắp xếp giảm dần theo hiệu quả
-    df = df.sort_values(by='efficiency', ascending=False)
+    # Giá trị mang lại (Net Value) - Vẫn là số thập phân
+    df['net_value'] = df['gross_profit'] - df['holding_total'] + df['shortage_penalty']
+
+    # 2. CHUYỂN ĐỔI SANG ĐƠN VỊ SCALE (Để lập bảng Knapsack)
+    # Chỉ có Chi phí và Ngân sách cần biến thành số nguyên để làm Index
+    scaled_costs = (df['total_cost'] * scale).round().astype(int).values
+    scaled_budget = int(budget * scale)
     
-    selected_items = {}
-    total_profit = 0
-    remaining_budget = budget
+    # Lợi nhuận (Values) có thể giữ float nếu dùng bảng Dictionary hoặc ép int để tối ưu tốc độ
+    values = df['net_value'].values 
+    items = df['item_id'].values
+    n = len(df)
+
+    # 3. LẬP BẢNG KNAPSACK
+    # Dùng float cho bảng K để chứa lợi nhuận lẻ
+    K = np.zeros((n + 1, scaled_budget + 1))
+
+    for i in range(1, n + 1):
+        cost_i = scaled_costs[i-1]
+        val_i = values[i-1]
+        for w in range(scaled_budget + 1):
+            if cost_i <= w:
+                K[i][w] = max(val_i + K[i-1][w-cost_i], K[i-1][w])
+            else:
+                K[i][w] = K[i-1][w]
+
+    # 4. TRUY VẾT (Backtracking)
+    w = scaled_budget
+    result_details = []
     
-    # 3. Duyệt và hốt những món hời nhất trước
-    for _, row in df.iterrows():
-        item_id = row['item_id']
-        unit_cost = row['unit_cost']
-        demand = int(row['demand_forecast']) # Số lượng AI dự báo
-        
-        if remaining_budget <= 0:
-            break
-            
-        # Tính số lượng tối đa có thể mua cho món này (không quá cầu và không quá tiền)
-        max_qty_can_buy = int(remaining_budget // unit_cost)
-        qty_to_buy = min(demand, max_qty_can_buy)
-        
-        if qty_to_buy > 0:
-            selected_items[item_id] = qty_to_buy
-            total_profit += qty_to_buy * row['profit_per_unit']
-            remaining_budget -= qty_to_buy * unit_cost
-            
-    return total_profit, selected_items
+    for i in range(n, 0, -1):
+        # Kiểm tra sự chênh lệch (dùng sai số nhỏ 1e-5 thay vì != để tránh lỗi float)
+        if K[i][w] > K[i-1][w] + 1e-5:
+            idx = i - 1
+            result_details.append({
+                'item_id': items[idx],
+                'quantity_to_buy': df.iloc[idx]['demand'], # Giữ nguyên số gốc
+                'total_cost': df.iloc[idx]['total_cost'],    # Giữ nguyên số gốc
+                'value_added': df.iloc[idx]['net_value']     # Giữ nguyên số gốc
+            })
+            w -= scaled_costs[idx]
+
+    df_result = pd.DataFrame(result_details)
+    
+    # Trả về Tổng lợi nhuận (ô cuối) và bảng chi tiết
+    return K[n][scaled_budget], df_result
