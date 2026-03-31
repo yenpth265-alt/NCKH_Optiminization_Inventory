@@ -10,9 +10,9 @@ def inventory_simulation_model(df, review_length, service_level):
     """
     
     # --- BƯỚC 1: TÍNH CÁC THÔNG SỐ ĐẦU VÀO ---
-    # 1. Tính sai số dự báo e = Actual - Forecast [cite: 1, 3]
+    # 1. Tính sai số dự báo e = Actual - Forecast 
     df['e'] = df['actual_demand'] - df['forecast_demand']
-    # 2. Tính trung bình sai số mu_e [cite: 4, 9]
+    # 2. Tính trung bình sai số mu_e 
     mu_e = df['e'].mean()
     
     # 3. Tính Safety Stock (SS) [cite: 5]
@@ -23,10 +23,10 @@ def inventory_simulation_model(df, review_length, service_level):
     
     # 4. Tính d_f_R: Tổng nhu cầu dự báo trong 1 chu kỳ R [cite: 8, 10]
     # Ở đây lấy trung bình forecast nhân với R để đại diện cho 1 chu kỳ
-    d_f_R = df['forecast_demand'].mean() * review_length 
+    d_f_R = df['forecast_demand'].iloc[:review_length].sum()  
     
     # 5. Tính Mức tồn kho mục tiêu S 
-    S = d_f_R + mu_e + safety_stock 
+    S = d_f_R + mu_e*review_length + safety_stock 
     
     # --- BƯỚC 2: CHẠY MÔ PHỎNG TỪNG NGÀY ---
     inventory_log = []
