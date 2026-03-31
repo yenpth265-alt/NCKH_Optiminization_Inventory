@@ -1,61 +1,49 @@
-import numpy as np
+import pulp
 import pandas as pd
-def optimize_inventory_knapsack(df, budget, scale=100):
-    import numpy as np
-    import pandas as pd
-    # 1. Tính toán các thành phần cơ bản
-    df['total_cost'] = df['demand'] * df['unit_cost']
-    df['net_gain_if_buy'] = (df['demand'] * (df['sell_price'] - df['unit_cost'])) - (df['demand'] * df['holding_cost_per_unit'] * 0.1)
-    df['shortage_cost'] = df['demand'] * df['shortage_cost_per_unit']
-    
-    n = len(df)
-    costs = (df['total_cost'] * scale).round().astype(int).values
-    gains = df['net_gain_if_buy'].values
-    penalties = df['shortage_cost'].values
-    items = df['item_id'].values
-    scaled_budget = int(budget * scale)
+import numpy as np
 
-    # 2. KHỞI TẠO BẢNG K
-    # Thay vì khởi tạo bằng 0, hàng đầu tiên (i=0) sẽ mang giá trị phạt 
-    # của tất cả các mặt hàng chưa xét đến.
-    K = np.zeros((n + 1, scaled_budget + 1))
-    
-    # Tính tổng phạt ban đầu (trạng thái tệ nhất: không mua gì cả)
-    total_penalty_all = df['shortage_cost'].sum()
-    K[0, :] = -total_penalty_all 
+def solve_bounded_knapsack(df, budget):
+    # 1. Khởi tạo bài toán
+    prob = pulp.LpProblem("Inventory_Optimization", pulp.LpMaximize)
 
-    # 3. CHẠY QUY HOẠCH ĐỘNG
-    for i in range(1, n + 1):
-        cost_i = costs[i-1]
-        gain_i = gains[i-1]        # Lãi nếu mua
-        penalty_i = penalties[i-1]  # Phí phạt nếu KHÔNG mua
-        
-        for w in range(scaled_budget + 1):
-            # Trường hợp KHÔNG MUA món i: 
-            # Giá trị kế thừa từ K[i-1][w] (đã bao gồm penalty của món i)
-            res_no_buy = K[i-1][w]
-            
-            if cost_i <= w:
-                # Trường hợp MUA món i:
-                # Ta lấy giá trị từ ô trước đó (K[i-1][w-cost_i]) 
-                # CỘNG thêm lãi và CỘNG LẠI số tiền phạt đã bị trừ mặc định
-                res_buy = K[i-1][w-cost_i] + gain_i + penalty_i
-                
-                # So sánh trực tiếp 2 trường hợp như bạn muốn
-                K[i][w] = max(res_buy, res_no_buy)
-            else:
-                K[i][w] = res_no_buy
+    # 2. Tạo danh sách chỉ số sản phẩm
+    indices = df.index
 
-    # 4. TRUY VẾT (Backtracking)
-    w = scaled_budget
-    selected_items = []
-    for i in range(n, 0, -1):
-        # Nếu giá trị tại ô hiện tại khác với ô không mua hàng trên nó
-        if K[i][w] > K[i-1][w] + 1e-5:
-            selected_items.append(items[i-1])
-            w -= costs[i-1]
+    # 3. Tạo biến quyết định: Số lượng sản phẩm i cần mua (x_i)
+    # lowBound=0: Không mua số âm
+    # cat=pulp.LpInteger: Phải là số nguyên (1, 2, 3...)
+    x = pulp.LpVariable.dicts("qty", indices, lowBound=0, cat=pulp.LpInteger)
 
-    df_result = df[df['item_id'].isin(selected_items)].copy()
-    
-    # Kết quả cuối cùng tại ô K[n][scaled_budget] chính là lợi nhuận thực tế sau khi trừ phạt
-    return K[n][scaled_budget], df_result
+    # 4. Hàm mục tiêu: Tối đa hóa tổng giá trị ròng (Net Value)
+    # Net Value ở đây nên là giá trị trên 1 đơn vị sản phẩm
+    prob += pulp.lpSum([df.loc[i, 'net_value_per_unit'] * x[i] for i in indices])
+
+    # 5. Các ràng buộc (Constraints)
+
+    # Ràng buộc 1: Tổng chi phí <= Ngân sách
+    prob += pulp.lpSum([df.loc[i, 'unit_cost'] * x[i] for i in indices]) <= budget
+
+    # Ràng buộc 2: Số lượng mua không vượt quá nhu cầu (Demand)
+    # Đây là điểm khác biệt quan trọng so với bài trước
+    for i in indices:
+        prob += x[i] <= df.loc[i, 'demand']
+
+    # 6. Giải bài toán
+    # msg=0 để tắt log, msg=1 nếu bạn muốn xem quá trình solver tính toán
+    status = prob.solve(pulp.PULP_CBC_CMD(msg=1, timeLimit=60))
+
+    # 7. Thu thập kết quả
+    results = []
+    for i in indices:
+        qty = pulp.value(x[i])
+        if qty > 0:
+            results.append({
+                'item_id': df.loc[i, 'item_id'],
+                'quantity_to_buy': int(qty),
+                'unit_cost': df.loc[i, 'unit_cost'],
+                'total_cost': qty * df.loc[i, 'unit_cost'],
+                'total_value': qty * df.loc[i, 'net_value_per_unit']
+            })
+
+    df_res = pd.DataFrame(results)
+    return pulp.value(prob.objective), df_res

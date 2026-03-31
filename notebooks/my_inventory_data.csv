@@ -1,6 +1,6 @@
-item_id,demand,sell_price,unit_cost,holding_cost_per_unit,shortage_cost_per_unit
-SP01,100,500,300,10,50
-SP02,150,300,200,5,30
-SP03,80,1000,600,20,100
-SP04,200,150,100,2,15
-SP05,50,2000,1200,50,200
+item_id,demand,sell_price,holding_cost_per_unit,shortage_cost_per_unit
+SP01,100,500,10,50
+SP02,150,300,5,30
+SP03,80,1000,20,100
+SP04,200,150,2,15
+SP05,50,2000,50,200
