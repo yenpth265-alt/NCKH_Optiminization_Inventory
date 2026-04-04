@@ -94,7 +94,8 @@ def create_dt(is_train = True,
               cal_dt = None, 
               raw_folder = "../dataset/raw/",
               tr_last = 1913,
-              max_lags = 57
+              max_lags = 57,
+              sales_data = 'sales_train_validation.csv'
               ):
     prices = pd.read_csv(f"{raw_folder}/sell_prices.csv", dtype = price_dt)
     for col, col_dtype in price_dt.items():
@@ -114,7 +115,7 @@ def create_dt(is_train = True,
     catcols = ['id', 'item_id', 'dept_id','store_id', 'cat_id', 'state_id']
     dtype = {numcol:"float32" for numcol in numcols} 
     dtype.update({col: "category" for col in catcols if col != "id"})
-    dt = pd.read_csv(f"{raw_folder}/sales_train_validation.csv", 
+    dt = pd.read_csv(f"{raw_folder}/{sales_data}", 
                      nrows = nrows, usecols = catcols + numcols, dtype = dtype)
     
     for col in catcols:

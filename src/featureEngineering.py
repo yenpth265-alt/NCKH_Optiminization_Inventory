@@ -97,3 +97,19 @@ def classify_demand(group):
         category = 'Lumpy (Cục bộ)'
         
     return pd.Series({'ADI': round(adi, 2), 'CV2': round(cv2, 2), 'Category': category})
+
+
+def add_demandFeature(demand_dir = "../dataset/result/demand_classification.csv", data = None):
+    #Load phân loại deamand đã có từ trước
+    df_demandType = pd.read_csv(demand_dir)
+
+    # Merge df with df_demandType to add 'Category' column
+    df = data
+
+    # Merge df with df_demandType to add 'Category' column
+    df = df.merge(df_demandType[['id', 'Category']], on='id', how='left')
+
+    # Perform one-hot encoding on 'Category' column
+    df = pd.get_dummies(df, columns=['Category'], prefix='cat')
+
+    return df
